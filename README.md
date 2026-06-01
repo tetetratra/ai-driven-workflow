@@ -57,7 +57,7 @@ AIDW_REF="main"
 
 mkdir -p .github/workflows
 
-cat > .github/workflows/ai-pr-issue-bootstrap.yml <<'EOF'
+cat > .github/workflows/ai-pr-issue-bootstrap.yml <<EOF
 name: AI PR Issue Bootstrap
 
 on:
@@ -85,11 +85,11 @@ jobs:
           github.event.label.name == 'AI主導開発'
         )
       )
-    uses: __AIDW_REPO__/.github/workflows/ai-pr-bootstrap.yml@__AIDW_REF__
+    uses: ${AIDW_REPO}/.github/workflows/ai-pr-bootstrap.yml@${AIDW_REF}
     secrets: inherit
 EOF
 
-cat > .github/workflows/ai-pr-comment.yml <<'EOF'
+cat > .github/workflows/ai-pr-comment.yml <<EOF
 name: AI PR Comment
 
 on:
@@ -105,11 +105,11 @@ permissions:
 
 jobs:
   comment:
-    uses: __AIDW_REPO__/.github/workflows/ai-pr-comment.yml@__AIDW_REF__
+    uses: ${AIDW_REPO}/.github/workflows/ai-pr-comment.yml@${AIDW_REF}
     secrets: inherit
 EOF
 
-cat > .github/workflows/ai-pr-state-cleanup.yml <<'EOF'
+cat > .github/workflows/ai-pr-state-cleanup.yml <<EOF
 name: AI PR State Cleanup
 
 on:
@@ -123,18 +123,11 @@ permissions:
 
 jobs:
   cleanup:
-    uses: __AIDW_REPO__/.github/workflows/ai-pr-state-cleanup.yml@__AIDW_REF__
+    uses: ${AIDW_REPO}/.github/workflows/ai-pr-state-cleanup.yml@${AIDW_REF}
 EOF
-
-# 参照先を反映（macOS / Linux 両対応）
-sed -i.bak \
-  -e "s|__AIDW_REPO__|${AIDW_REPO}|g" \
-  -e "s|__AIDW_REF__|${AIDW_REF}|g" \
-  .github/workflows/ai-pr-issue-bootstrap.yml \
-  .github/workflows/ai-pr-comment.yml \
-  .github/workflows/ai-pr-state-cleanup.yml
-rm -f .github/workflows/*.bak
 ```
+
+> トリガ workflow には `${{ ... }}` を含めていない（`if:` はベア式）ため、クォートなしヒアドキュメントの変数展開で参照先を埋め込めます。
 
 ### 2. ラベルを作成する
 
