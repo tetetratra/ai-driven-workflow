@@ -18,15 +18,15 @@ GitHub の issue / PR コメントをきっかけに、AI（Codex / Cursor CLI�
 ```mermaid
 flowchart TD
   subgraph consumer [導入先リポジトリ .github/workflows]
-    T1[ai-pr-issue-bootstrap.yml]
-    T2[ai-pr-comment.yml]
-    T3[ai-pr-state-cleanup.yml]
+    T1[aidw-pr-issue-bootstrap.yml]
+    T2[aidw-pr-comment.yml]
+    T3[aidw-pr-state-cleanup.yml]
   end
   subgraph tool [ai-driven-workflow @main 再利用ワークフロー]
-    R1[ai-pr-bootstrap.yml]
-    R2[ai-pr-comment.yml]
-    R3[ai-pr-common.yml]
-    R4[ai-pr-state-cleanup.yml]
+    R1[pr-bootstrap.yml]
+    R2[pr-comment.yml]
+    R3[pr-common.yml]
+    R4[pr-state-cleanup.yml]
   end
   T1 -- "uses @main" --> R1 --> R3
   T2 -- "uses @main" --> R2 --> R3
@@ -36,6 +36,7 @@ flowchart TD
 
 - **`@main` 参照のため、導入先は更新作業なしで常に最新を追従**します。ツールリポジトリ側でのバージョン管理（タグ付け等）は不要です。安定運用したい場合のみ、導入先で `@v1` や `@<SHA>` に固定できます。
 - AI に渡すスキルは入れ子 submodule [`external/skills`](https://github.com/tetetratra/skills)（`tetetratra/skills`）を参照します。
+- 命名規則：本体（再利用ワークフロー）は `pr-*.yml`、導入先に置く薄いトリガは `aidw-*.yml`（`aidw` = ai-driven-workflow）。トリガにプレフィックスを付けることで、導入先から「外部の仕組みを使っている」と一目で分かり、本体ワークフローとの同名衝突も避けられます（このリポジトリ自身に導入する場合も衝突しません）。
 
 ## 前提
 
@@ -57,7 +58,7 @@ AIDW_REF="main"
 
 mkdir -p .github/workflows
 
-cat > .github/workflows/ai-pr-issue-bootstrap.yml <<EOF
+cat > .github/workflows/aidw-pr-issue-bootstrap.yml <<EOF
 name: AI PR Issue Bootstrap
 
 on:
@@ -85,11 +86,11 @@ jobs:
           github.event.label.name == 'AI主導開発'
         )
       )
-    uses: ${AIDW_REPO}/.github/workflows/ai-pr-bootstrap.yml@${AIDW_REF}
+    uses: ${AIDW_REPO}/.github/workflows/pr-bootstrap.yml@${AIDW_REF}
     secrets: inherit
 EOF
 
-cat > .github/workflows/ai-pr-comment.yml <<EOF
+cat > .github/workflows/aidw-pr-comment.yml <<EOF
 name: AI PR Comment
 
 on:
@@ -105,11 +106,11 @@ permissions:
 
 jobs:
   comment:
-    uses: ${AIDW_REPO}/.github/workflows/ai-pr-comment.yml@${AIDW_REF}
+    uses: ${AIDW_REPO}/.github/workflows/pr-comment.yml@${AIDW_REF}
     secrets: inherit
 EOF
 
-cat > .github/workflows/ai-pr-state-cleanup.yml <<EOF
+cat > .github/workflows/aidw-pr-state-cleanup.yml <<EOF
 name: AI PR State Cleanup
 
 on:
@@ -123,7 +124,7 @@ permissions:
 
 jobs:
   cleanup:
-    uses: ${AIDW_REPO}/.github/workflows/ai-pr-state-cleanup.yml@${AIDW_REF}
+    uses: ${AIDW_REPO}/.github/workflows/pr-state-cleanup.yml@${AIDW_REF}
 EOF
 ```
 
@@ -185,17 +186,17 @@ git add .github/workflows && git commit -m "chore: AI主導開発ワークフロ
 
 ## カスタマイズ（プロジェクト固有の依存）
 
-実行用の Docker イメージは汎用最小構成（git / gh / jq / ripgrep / Node + Codex CLI / Cursor CLI など）です。プロジェクト固有のビルド/テスト依存が必要な場合は、トリガ workflow から呼ぶ際に再利用ワークフロー `ai-pr-common.yml` の入力を渡して拡張できます。
+実行用の Docker イメージは汎用最小構成（git / gh / jq / ripgrep / Node + Codex CLI / Cursor CLI など）です。プロジェクト固有のビルド/テスト依存が必要な場合は、トリガ workflow から呼ぶ際に再利用ワークフロー `pr-common.yml` の入力を渡して拡張できます。
 
 - `setup_script`: AI 実行前にコンテナ内で走らせる導入先内のスクリプトパス（依存インストール等）。
 - `runner_dockerfile`: 導入先リポジトリ内の独自 Dockerfile パス（既定のイメージを置き換える）。
 
-これらを使う場合は、トリガ workflow の `bootstrap` / `comment` を `ai-pr-bootstrap.yml` / `ai-pr-comment.yml` 経由ではなく、`ai-pr-common.yml` を直接呼ぶ形に調整し、必要な入力を `with:` で渡してください。
+これらを使う場合は、トリガ workflow の `bootstrap` / `comment` を `pr-bootstrap.yml` / `pr-comment.yml` 経由ではなく、`pr-common.yml` を直接呼ぶ形に調整し、必要な入力を `with:` で渡してください。
 
 ## リポジトリ構成
 
 ```
-.github/workflows/      再利用ワークフロー（bootstrap / comment / common / state-cleanup）と自リポジトリ用 lint
+.github/workflows/      再利用ワークフロー（pr-bootstrap / pr-comment / pr-common / pr-state-cleanup）と自リポジトリ用 lint
 scripts/ai_pr/          中核ロジック（PR 作成・コンテキスト解決・プロンプト生成・AI 実行・状態管理）
 docker/runner.Dockerfile 汎用 AI runner イメージ
 prompts/                branch slug 生成プロンプト

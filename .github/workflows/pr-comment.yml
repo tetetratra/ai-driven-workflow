@@ -17,7 +17,7 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: ai-pr-comment-${{ github.event.issue.number || github.run_id }}
+  group: pr-comment-${{ github.event.issue.number || github.run_id }}
   cancel-in-progress: false
 
 jobs:
@@ -111,7 +111,7 @@ jobs:
   run:
     needs: prepare
     if: needs.prepare.outputs.should_run == 'true' && needs.prepare.outputs.allowed == 'true'
-    uses: ./.github/workflows/ai-pr-common.yml
+    uses: ./.github/workflows/pr-common.yml
     secrets: inherit
     with:
       instruction_body: ${{ needs.prepare.outputs.instruction_body }}

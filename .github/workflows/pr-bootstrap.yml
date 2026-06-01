@@ -102,7 +102,7 @@ jobs:
 
   run:
     needs: bootstrap
-    uses: ./.github/workflows/ai-pr-common.yml
+    uses: ./.github/workflows/pr-common.yml
     secrets: inherit
     with:
       instruction_body: |

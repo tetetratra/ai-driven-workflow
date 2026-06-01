@@ -1,6 +1,6 @@
 # 汎用 AI runner イメージ。
 # プロジェクト固有のビルド/テスト依存は含めない。必要な場合は導入先で
-#   - ai-pr-common.yml の `runner_dockerfile` 入力で独自 Dockerfile を指定する、または
+#   - pr-common.yml の `runner_dockerfile` 入力で独自 Dockerfile を指定する、または
 #   - `setup_script` 入力で AI 実行前に依存をインストールする
 # のいずれかで拡張する。
 FROM node:20-bookworm-slim
