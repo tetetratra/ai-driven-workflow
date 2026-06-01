@@ -44,29 +44,97 @@ flowchart TD
 
 ## 導入手順
 
+導入先リポジトリのルートで、以下のコマンドをそのまま実行してください。専用スクリプトの取得は不要で、3 つのトリガ workflow をその場で生成します。
+
 ### 1. トリガ workflow を設置する
 
-導入先リポジトリのルートで、次のいずれかを実行します。
-
-**A) インストールスクリプト（推奨）**
+先頭の `AIDW_REPO` / `AIDW_REF` だけ必要に応じて書き換えて、ブロック全体を実行します（`AIDW_REF` は `main` で常に最新追従、固定したい場合はタグや SHA を指定）。
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/tetetratra/ai-driven-workflow/main/bin/install.sh \
-  | bash -s -- --repo tetetratra/ai-driven-workflow --ref main
+# 参照先（必要に応じて変更）
+AIDW_REPO="tetetratra/ai-driven-workflow"
+AIDW_REF="main"
+
+mkdir -p .github/workflows
+
+cat > .github/workflows/ai-pr-issue-bootstrap.yml <<'EOF'
+name: AI PR Issue Bootstrap
+
+on:
+  issues:
+    types:
+      - opened
+      - labeled
+
+permissions:
+  actions: write
+  contents: write
+  issues: write
+  models: read
+  pull-requests: write
+
+jobs:
+  bootstrap:
+    if: >-
+      github.event.issue.state == 'open' && (
+        (
+          github.event.action == 'opened' &&
+          contains(github.event.issue.labels.*.name, 'AI主導開発')
+        ) || (
+          github.event.action == 'labeled' &&
+          github.event.label.name == 'AI主導開発'
+        )
+      )
+    uses: __AIDW_REPO__/.github/workflows/ai-pr-bootstrap.yml@__AIDW_REF__
+    secrets: inherit
+EOF
+
+cat > .github/workflows/ai-pr-comment.yml <<'EOF'
+name: AI PR Comment
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  actions: write
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  comment:
+    uses: __AIDW_REPO__/.github/workflows/ai-pr-comment.yml@__AIDW_REF__
+    secrets: inherit
+EOF
+
+cat > .github/workflows/ai-pr-state-cleanup.yml <<'EOF'
+name: AI PR State Cleanup
+
+on:
+  pull_request:
+    types:
+      - closed
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cleanup:
+    uses: __AIDW_REPO__/.github/workflows/ai-pr-state-cleanup.yml@__AIDW_REF__
+EOF
+
+# 参照先を反映（macOS / Linux 両対応）
+sed -i.bak \
+  -e "s|__AIDW_REPO__|${AIDW_REPO}|g" \
+  -e "s|__AIDW_REF__|${AIDW_REF}|g" \
+  .github/workflows/ai-pr-issue-bootstrap.yml \
+  .github/workflows/ai-pr-comment.yml \
+  .github/workflows/ai-pr-state-cleanup.yml
+rm -f .github/workflows/*.bak
 ```
-
-ローカルに clone 済みなら次でも実行できます。
-
-```sh
-bash bin/install.sh --target /path/to/your-repo
-```
-
-`.github/workflows/` に 3 つの workflow が設置されます。
-
-**B) 手動コピー**
-
-`templates/workflows/` の 3 ファイルを導入先の `.github/workflows/` にコピーし、各ファイル内の
-`__AIDW_REPO__`（例: `tetetratra/ai-driven-workflow`）と `__AIDW_REF__`（例: `main`）を置換します。
 
 ### 2. ラベルを作成する
 
@@ -124,12 +192,12 @@ git add .github/workflows && git commit -m "chore: AI主導開発ワークフロ
 
 ## カスタマイズ（プロジェクト固有の依存）
 
-実行用の Docker イメージは汎用最小構成（git / gh / jq / ripgrep / Node + Codex CLI / Cursor CLI など）です。プロジェクト固有のビルド/テスト依存が必要な場合は、薄いトリガ workflow から呼ぶ際に再利用ワークフロー `ai-pr-common.yml` の入力を渡して拡張できます。
+実行用の Docker イメージは汎用最小構成（git / gh / jq / ripgrep / Node + Codex CLI / Cursor CLI など）です。プロジェクト固有のビルド/テスト依存が必要な場合は、トリガ workflow から呼ぶ際に再利用ワークフロー `ai-pr-common.yml` の入力を渡して拡張できます。
 
 - `setup_script`: AI 実行前にコンテナ内で走らせる導入先内のスクリプトパス（依存インストール等）。
 - `runner_dockerfile`: 導入先リポジトリ内の独自 Dockerfile パス（既定のイメージを置き換える）。
 
-これらを使う場合は、トリガ workflow を `uses:` のままにせず、必要な入力を `with:` で渡す形に調整してください。
+これらを使う場合は、トリガ workflow の `bootstrap` / `comment` を `ai-pr-bootstrap.yml` / `ai-pr-comment.yml` 経由ではなく、`ai-pr-common.yml` を直接呼ぶ形に調整し、必要な入力を `with:` で渡してください。
 
 ## リポジトリ構成
 
@@ -138,10 +206,10 @@ git add .github/workflows && git commit -m "chore: AI主導開発ワークフロ
 scripts/ai_pr/          中核ロジック（PR 作成・コンテキスト解決・プロンプト生成・AI 実行・状態管理）
 docker/runner.Dockerfile 汎用 AI runner イメージ
 prompts/                branch slug 生成プロンプト
-templates/workflows/    導入先に置く薄いトリガ workflow の雛形
-bin/install.sh          導入スクリプト
 external/skills/         AI に渡すスキル（submodule: tetetratra/skills）
 ```
+
+導入先に置くトリガ workflow は、上記「導入手順」のコードブロックで生成します（雛形ファイルやインストールスクリプトは同梱していません）。
 
 ## セキュリティ
 
@@ -153,7 +221,7 @@ external/skills/         AI に渡すスキル（submodule: tetetratra/skills）
 
 ```sh
 # 静的検証（ローカル）
-shellcheck $(find scripts bin -name '*.sh')
+shellcheck $(find scripts -name '*.sh')
 actionlint -ignore 'property "workflow_(repository|sha)" is not defined'
 ```
 

@@ -32,4 +32,4 @@ jobs:
       - name: shellcheck を実行する
         shell: bash
         run: |
-          find scripts bin -name '*.sh' -print0 | xargs -0 shellcheck
+          find scripts -name '*.sh' -print0 | xargs -0 shellcheck
