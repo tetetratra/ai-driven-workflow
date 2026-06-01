@@ -1,5 +1,6 @@
 # 導入先リポジトリの .github/workflows/ に配置する薄いトリガ workflow。
-# __AIDW_REPO__ / __AIDW_REF__ は bin/install.sh が置換する（手動コピー時は自分で置換する）。
+# 末尾 uses: 行の参照先(owner/repo と @ref)は bin/install.sh が設定する。
+# 手動コピー時は uses: 行を自分で書き換えること。
 name: AI PR State Cleanup
 
 on:
