@@ -71,7 +71,7 @@ jobs:
         env:
           INPUT_BRANCH_SLUG: ${{ steps.branch_slug.outputs.slug }}
         run: |
-          bash .aidw/scripts/ai_pr/bootstrap/create_pr_from_issue.sh
+          bash .aidw/scripts/bootstrap/create_pr_from_issue.sh
 
       - name: 依頼文言を作成した PR に転記する
         shell: bash

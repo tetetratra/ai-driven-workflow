@@ -52,7 +52,7 @@ cat > "$meta_file" <<EOF
 }
 EOF
 
-AI_AGENT_NAME="Codex" bash "$AIDW_DIR/scripts/ai_pr/common/build_prompt.sh" "$prompt_file"
+AI_AGENT_NAME="Codex" bash "$AIDW_DIR/scripts/common/build_prompt.sh" "$prompt_file"
 
 skills_src="$AIDW_DIR/external/skills/skills"
 skills_dest="${CODEX_HOME}/skills"

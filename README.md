@@ -197,7 +197,7 @@ git add .github/workflows && git commit -m "chore: AI主導開発ワークフロ
 
 ```
 .github/workflows/      再利用ワークフロー（pr-bootstrap / pr-comment / pr-common / pr-state-cleanup）と自リポジトリ用 lint
-scripts/ai_pr/          中核ロジック（PR 作成・コンテキスト解決・プロンプト生成・AI 実行・状態管理）
+scripts/                中核ロジック（PR 作成・コンテキスト解決・プロンプト生成・AI 実行・状態管理）
 docker/runner.Dockerfile 汎用 AI runner イメージ
 prompts/                branch slug 生成プロンプト
 external/skills/         AI に渡すスキル（submodule: tetetratra/skills）
@@ -220,6 +220,21 @@ actionlint -ignore 'property "workflow_(repository|sha)" is not defined'
 ```
 
 `main` への変更は全導入先へ即時伝播するため、後方互換を保つ運用を推奨します。
+
+### skills サブモジュールの更新
+
+AI に渡すスキルは `external/skills`（[tetetratra/skills](https://github.com/tetetratra/skills)）を submodule として参照しています。上流の更新を取り込むには、このリポジトリで以下を実行します。
+
+```sh
+# submodule を上流の最新コミットへ更新する
+git submodule update --remote external/skills
+
+# 参照コミットの更新をこのリポジトリにコミットする
+git add external/skills
+git commit -m "chore: skills サブモジュールを更新"
+```
+
+クローン直後など submodule が未取得の場合は、先に `git submodule update --init --recursive` を実行してください。
 
 ## ライセンス
 

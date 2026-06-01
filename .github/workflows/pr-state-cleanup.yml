@@ -25,4 +25,4 @@ jobs:
       - name: 状態 Artifact を削除する
         shell: bash
         run: |
-          bash .aidw/scripts/ai_pr/state/delete_state_artifact.sh
+          bash .aidw/scripts/state/delete_state_artifact.sh

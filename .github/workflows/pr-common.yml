@@ -186,7 +186,7 @@ jobs:
           PR_NUMBER: ${{ inputs.pr_number }}
           STATE_ENCRYPTION_PASSPHRASE: ${{ secrets.STATE_ENCRYPTION_PASSPHRASE }}
         run: |
-          bash .aidw/scripts/ai_pr/common/restore_state_artifact.sh
+          bash .aidw/scripts/common/restore_state_artifact.sh
 
       - name: Docker ビルドコンテキストを解決する
         id: docker
@@ -250,7 +250,7 @@ jobs:
             -v "${STATE_ROOT}:/state" \
             "ai-runner:${GITHUB_RUN_ID}" \
             bash -lc '
-              bash /aidw/scripts/ai_pr/common/run_codex.sh
+              bash /aidw/scripts/common/run_codex.sh
             '
 
       - name: Cursor CLI を実行する
@@ -287,7 +287,7 @@ jobs:
             -v "${STATE_ROOT}:/state" \
             "ai-runner:${GITHUB_RUN_ID}" \
             bash -lc '
-              bash /aidw/scripts/ai_pr/common/run_cursor_cli.sh
+              bash /aidw/scripts/common/run_cursor_cli.sh
             '
 
       - name: 状態 Artifact を暗号化する
@@ -300,7 +300,7 @@ jobs:
           if [ -n "$PASSPHRASE" ]; then
             echo "Encrypting state artifact..."
             mkdir -p "${RUNNER_TEMP}/encrypted-state"
-            bash .aidw/scripts/ai_pr/common/state_crypto.sh encrypt "${STATE_ROOT}" "${RUNNER_TEMP}/encrypted-state/state.tar.gz.gpg" "$PASSPHRASE"
+            bash .aidw/scripts/common/state_crypto.sh encrypt "${STATE_ROOT}" "${RUNNER_TEMP}/encrypted-state/state.tar.gz.gpg" "$PASSPHRASE"
             upload_path="${RUNNER_TEMP}/encrypted-state"
           else
             echo "warning: STATE_ENCRYPTION_PASSPHRASE is not set. Uploading state in plaintext."

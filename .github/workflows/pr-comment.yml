@@ -47,7 +47,7 @@ jobs:
         id: context
         shell: bash
         run: |
-          bash .aidw/scripts/ai_pr/comment/resolve_comment_context.sh
+          bash .aidw/scripts/comment/resolve_comment_context.sh
 
       - name: 対象外コメントをスキップする
         if: steps.context.outputs.should_run != 'true'
