@@ -1,0 +1,35 @@
+name: Lint
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  actionlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: actionlint を実行する
+        shell: bash
+        run: |
+          bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          # job.workflow_repository / job.workflow_sha は新しめの公式 context だが
+          # actionlint がまだ型定義を持たないため、その2件のみ無視する
+          ./actionlint -color \
+            -ignore 'property "workflow_(repository|sha)" is not defined'
+
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: shellcheck を実行する
+        shell: bash
+        run: |
+          find scripts bin -name '*.sh' -print0 | xargs -0 shellcheck
