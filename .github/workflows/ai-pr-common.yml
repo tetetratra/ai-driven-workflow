@@ -1,0 +1,347 @@
+name: AI PR Common
+
+on:
+  workflow_call:
+    inputs:
+      context_sha:
+        required: false
+        type: string
+      instruction_body:
+        required: true
+        type: string
+      pr_number:
+        required: true
+        type: string
+      pr_url:
+        required: false
+        type: string
+      run_mode:
+        default: normal
+        required: false
+        type: string
+      runner_dockerfile:
+        description: 導入先リポジトリ内の独自 Dockerfile パス（既定はツール同梱の汎用イメージ）
+        required: false
+        type: string
+      setup_script:
+        description: AI 実行前にコンテナ内で走らせる導入先内のスクリプトパス（依存インストール等）
+        required: false
+        type: string
+      target_ref:
+        required: true
+        type: string
+      trigger_actor:
+        required: false
+        type: string
+    secrets:
+      CODEX_AUTH_JSON_B64:
+        required: false
+      CURSOR_API_KEY:
+        required: false
+      STATE_ENCRYPTION_PASSPHRASE:
+        required: false
+
+permissions:
+  actions: write
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+    steps:
+      - name: 実行環境変数を準備する
+        shell: bash
+        run: |
+          echo "CODEX_HOME=${RUNNER_TEMP}/codex-home" >> "$GITHUB_ENV"
+          echo "STATE_ROOT=${RUNNER_TEMP}/codex-state" >> "$GITHUB_ENV"
+
+      - name: 導入先リポジトリを checkout する
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.target_ref }}
+
+      - name: ツールリポジトリ (ai-driven-workflow) を checkout する
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .aidw
+          submodules: recursive
+
+      - name: 実行用ディレクトリを git 管理から除外する
+        shell: bash
+        run: |
+          {
+            echo ".aidw/"
+            echo ".cursor/skills/"
+          } >> .git/info/exclude
+
+      - name: 実行する AI CLI を決定する
+        id: cli
+        shell: bash
+        env:
+          AI_CLI_TOOL: ${{ vars.AI_CLI_TOOL }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+        run: |
+          codex_label="AI:codex"
+          cursor_label="AI:cursor-cli"
+
+          label_tool=""
+          if [ -n "${PR_NUMBER:-}" ]; then
+            pr_labels="$(gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' 2>/dev/null || true)"
+            if printf '%s\n' "$pr_labels" | grep -Fxq "$cursor_label"; then
+              label_tool="cursor-cli"
+            elif printf '%s\n' "$pr_labels" | grep -Fxq "$codex_label"; then
+              label_tool="codex"
+            fi
+          fi
+
+          if [ -n "$label_tool" ]; then
+            echo "PR ラベルによる AI CLI 指定を検出しました: $label_tool"
+            selected="$label_tool"
+          else
+            selected="$(printf '%s' "${AI_CLI_TOOL:-}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+          fi
+          case "$selected" in
+            ""|codex)
+              tool="codex"
+              display_name="Codex"
+              ;;
+            cursor-cli)
+              tool="cursor-cli"
+              display_name="Cursor CLI"
+              ;;
+            *)
+              echo "warning: unsupported AI_CLI_TOOL '$selected'. Fallback to codex."
+              tool="codex"
+              display_name="Codex"
+              ;;
+          esac
+          echo "tool=$tool" >> "$GITHUB_OUTPUT"
+          echo "display_name=$display_name" >> "$GITHUB_OUTPUT"
+          echo "Selected AI CLI: $tool"
+
+      - name: 認証情報を復元する
+        id: auth
+        shell: bash
+        env:
+          AI_CLI_TOOL: ${{ steps.cli.outputs.tool }}
+          CODEX_AUTH_JSON_B64: ${{ secrets.CODEX_AUTH_JSON_B64 }}
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+        run: |
+          available="false"
+          case "${AI_CLI_TOOL}" in
+            codex)
+              if [ -n "${CODEX_AUTH_JSON_B64:-}" ]; then
+                mkdir -p "$CODEX_HOME"
+                chmod 700 "$CODEX_HOME"
+                printf '%s' "$CODEX_AUTH_JSON_B64" | base64 --decode > "$CODEX_HOME/auth.json"
+                chmod 600 "$CODEX_HOME/auth.json"
+                available="true"
+              fi
+              ;;
+            cursor-cli)
+              if [ -n "${CURSOR_API_KEY:-}" ]; then
+                available="true"
+              fi
+              ;;
+            *)
+              available="false"
+              ;;
+          esac
+          echo "available=$available" >> "$GITHUB_OUTPUT"
+
+      - name: 認証未設定を通知する
+        if: steps.auth.outputs.available != 'true'
+        shell: bash
+        env:
+          AI_CLI_TOOL: ${{ steps.cli.outputs.tool }}
+          AI_CLI_NAME: ${{ steps.cli.outputs.display_name }}
+        run: |
+          if [ "$AI_CLI_TOOL" = "cursor-cli" ]; then
+            body="Cursor CLI の認証情報が未設定です。GitHub Secret \`CURSOR_API_KEY\` を設定してください。"
+          else
+            body="Codex 認証情報が未設定です。trusted machine で Codex にログインし、\`CODEX_AUTH_JSON_B64\` を設定してください。"
+          fi
+          gh pr comment "${{ inputs.pr_number }}" --body "$body"
+
+      - name: Git ユーザーを設定する
+        if: steps.auth.outputs.available == 'true'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: 状態 Artifact を復元する
+        id: state
+        if: steps.auth.outputs.available == 'true'
+        shell: bash
+        env:
+          PR_NUMBER: ${{ inputs.pr_number }}
+          STATE_ENCRYPTION_PASSPHRASE: ${{ secrets.STATE_ENCRYPTION_PASSPHRASE }}
+        run: |
+          bash .aidw/scripts/ai_pr/common/restore_state_artifact.sh
+
+      - name: Docker ビルドコンテキストを解決する
+        id: docker
+        if: steps.auth.outputs.available == 'true'
+        shell: bash
+        run: |
+          if [ -n "${{ inputs.runner_dockerfile }}" ]; then
+            echo "context=${GITHUB_WORKSPACE}" >> "$GITHUB_OUTPUT"
+            echo "file=${GITHUB_WORKSPACE}/${{ inputs.runner_dockerfile }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "context=${GITHUB_WORKSPACE}/.aidw/docker" >> "$GITHUB_OUTPUT"
+            echo "file=${GITHUB_WORKSPACE}/.aidw/docker/runner.Dockerfile" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Docker Buildx を設定する
+        if: steps.auth.outputs.available == 'true'
+        uses: docker/setup-buildx-action@v4
+
+      - name: runner イメージを build する
+        if: steps.auth.outputs.available == 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ steps.docker.outputs.context }}
+          file: ${{ steps.docker.outputs.file }}
+          load: true
+          tags: ai-runner:${{ github.run_id }}
+          cache-from: type=gha,scope=ai-runner
+          cache-to: type=gha,mode=max,scope=ai-runner
+
+      - name: Codex を実行する
+        id: run_codex
+        if: >-
+          steps.auth.outputs.available == 'true' &&
+          steps.cli.outputs.tool == 'codex'
+        continue-on-error: true
+        shell: bash
+        env:
+          CONTEXT_SHA: ${{ inputs.context_sha }}
+          INSTRUCTION_BODY: ${{ inputs.instruction_body }}
+        run: |
+          mkdir -p "${STATE_ROOT}/run"
+          printf '%s' "$INSTRUCTION_BODY" > "${STATE_ROOT}/run/instruction.txt"
+          docker run --rm \
+            -e AIDW_DIR=/aidw \
+            -e CODEX_HOME=/codex-home \
+            -e GH_TOKEN="${GH_TOKEN}" \
+            -e GITHUB_TOKEN="${GH_TOKEN}" \
+            -e HEAD_SHA="${CONTEXT_SHA}" \
+            -e INSTRUCTION_FILE=/state/run/instruction.txt \
+            -e PR_BRANCH="${{ inputs.target_ref }}" \
+            -e PR_NUMBER="${{ inputs.pr_number }}" \
+            -e PR_URL="${{ inputs.pr_url }}" \
+            -e REPO="${REPO}" \
+            -e RUN_MODE="${{ inputs.run_mode }}" \
+            -e SETUP_SCRIPT="${{ inputs.setup_script }}" \
+            -e STATE_ROOT=/state \
+            -e TRIGGER_ACTOR="${{ inputs.trigger_actor }}" \
+            -v "${GITHUB_WORKSPACE}:/workspace" \
+            -v "${GITHUB_WORKSPACE}/.aidw:/aidw" \
+            -v "${CODEX_HOME}:/codex-home" \
+            -v "${STATE_ROOT}:/state" \
+            "ai-runner:${GITHUB_RUN_ID}" \
+            bash -lc '
+              bash /aidw/scripts/ai_pr/common/run_codex.sh
+            '
+
+      - name: Cursor CLI を実行する
+        id: run_cursor
+        if: >-
+          steps.auth.outputs.available == 'true' &&
+          steps.cli.outputs.tool == 'cursor-cli'
+        continue-on-error: true
+        shell: bash
+        env:
+          CONTEXT_SHA: ${{ inputs.context_sha }}
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          INSTRUCTION_BODY: ${{ inputs.instruction_body }}
+        run: |
+          mkdir -p "${STATE_ROOT}/run"
+          printf '%s' "$INSTRUCTION_BODY" > "${STATE_ROOT}/run/instruction.txt"
+          docker run --rm \
+            -e AIDW_DIR=/aidw \
+            -e CURSOR_API_KEY="${CURSOR_API_KEY}" \
+            -e GH_TOKEN="${GH_TOKEN}" \
+            -e GITHUB_TOKEN="${GH_TOKEN}" \
+            -e HEAD_SHA="${CONTEXT_SHA}" \
+            -e INSTRUCTION_FILE=/state/run/instruction.txt \
+            -e PR_BRANCH="${{ inputs.target_ref }}" \
+            -e PR_NUMBER="${{ inputs.pr_number }}" \
+            -e PR_URL="${{ inputs.pr_url }}" \
+            -e REPO="${REPO}" \
+            -e RUN_MODE="${{ inputs.run_mode }}" \
+            -e SETUP_SCRIPT="${{ inputs.setup_script }}" \
+            -e STATE_ROOT=/state \
+            -e TRIGGER_ACTOR="${{ inputs.trigger_actor }}" \
+            -v "${GITHUB_WORKSPACE}:/workspace" \
+            -v "${GITHUB_WORKSPACE}/.aidw:/aidw" \
+            -v "${STATE_ROOT}:/state" \
+            "ai-runner:${GITHUB_RUN_ID}" \
+            bash -lc '
+              bash /aidw/scripts/ai_pr/common/run_cursor_cli.sh
+            '
+
+      - name: 状態 Artifact を暗号化する
+        if: always() && steps.auth.outputs.available == 'true'
+        shell: bash
+        env:
+          PASSPHRASE: ${{ secrets.STATE_ENCRYPTION_PASSPHRASE }}
+        run: |
+          upload_path="${STATE_ROOT}"
+          if [ -n "$PASSPHRASE" ]; then
+            echo "Encrypting state artifact..."
+            mkdir -p "${RUNNER_TEMP}/encrypted-state"
+            bash .aidw/scripts/ai_pr/common/state_crypto.sh encrypt "${STATE_ROOT}" "${RUNNER_TEMP}/encrypted-state/state.tar.gz.gpg" "$PASSPHRASE"
+            upload_path="${RUNNER_TEMP}/encrypted-state"
+          else
+            echo "warning: STATE_ENCRYPTION_PASSPHRASE is not set. Uploading state in plaintext."
+          fi
+          echo "upload_path=$upload_path" >> "$GITHUB_ENV"
+
+      - name: 状態 Artifact を保存する
+        if: always() && steps.auth.outputs.available == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.state.outputs.artifact_name }}
+          path: ${{ env.upload_path }}
+          retention-days: 30
+          overwrite: true
+
+      - name: 失敗時のフォールバックコメントを投稿する
+        if: >-
+          steps.auth.outputs.available == 'true' && (
+            (steps.cli.outputs.tool == 'codex' && steps.run_codex.outcome == 'failure') ||
+            (steps.cli.outputs.tool == 'cursor-cli' && steps.run_cursor.outcome == 'failure')
+          )
+        shell: bash
+        env:
+          AI_CLI_TOOL: ${{ steps.cli.outputs.tool }}
+          AI_CLI_NAME: ${{ steps.cli.outputs.display_name }}
+        run: |
+          cat > "$RUNNER_TEMP/ai-run-failure-comment.md" <<'EOF'
+          AI 実行に失敗しました。
+
+          - 認証切れの可能性がある場合は、選択中の CLI に対応した認証 Secret を再設定してください。
+          - それ以外の場合は、この workflow run のログを確認してください。
+          EOF
+          if [ "$AI_CLI_TOOL" = "codex" ]; then
+            cat >> "$RUNNER_TEMP/ai-run-failure-comment.md" <<'EOF'
+
+          - Codex を使う場合は、trusted machine で `codex login` をやり直して `CODEX_AUTH_JSON_B64` を再設定してください。
+          EOF
+          else
+            cat >> "$RUNNER_TEMP/ai-run-failure-comment.md" <<'EOF'
+
+          - Cursor CLI を使う場合は、`CURSOR_API_KEY` を確認してください。
+          EOF
+          fi
+          gh pr comment "${{ inputs.pr_number }}" --body-file "$RUNNER_TEMP/ai-run-failure-comment.md"
