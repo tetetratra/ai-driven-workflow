@@ -160,7 +160,17 @@ gh secret set STATE_ENCRYPTION_PASSPHRASE --body "<任意の強固なパスフ�
 gh variable set AI_CLI_TOOL --body "cursor-cli"   # codex に戻すなら "codex"
 ```
 
-### 4. commit & push する
+### 4. Actions が PR を作成できるよう設定する
+
+bootstrap は GitHub Actions の `GITHUB_TOKEN` で PR を作成します。リポジトリ設定で「Allow GitHub Actions to create and approve pull requests」が無効だと、`GitHub Actions is not permitted to create or approve pull requests` で失敗します。以下で有効化してください（Settings → Actions → General → Workflow permissions のチェックと同じ）。
+
+```sh
+gh api -X PUT "repos/$(gh repo view --json nameWithOwner --jq .nameWithOwner)/actions/permissions/workflow" \
+  -f default_workflow_permissions=read \
+  -F can_approve_pull_request_reviews=true
+```
+
+### 5. commit & push する
 
 ```sh
 git add .github/workflows && git commit -m "chore: AI主導開発ワークフローを導入" && git push
