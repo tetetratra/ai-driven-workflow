@@ -34,6 +34,7 @@ jobs:
       trigger_actor: ${{ steps.context.outputs.trigger_actor }}
     env:
       GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
       REPO: ${{ github.repository }}
     steps:
       - name: ツールリポジトリ (ai-driven-workflow) を checkout する
