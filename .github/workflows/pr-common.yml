@@ -233,6 +233,7 @@ jobs:
           docker run --rm \
             -e AIDW_DIR=/aidw \
             -e CODEX_HOME=/codex-home \
+            -e GH_REPO="${REPO}" \
             -e GH_TOKEN="${GH_TOKEN}" \
             -e GITHUB_TOKEN="${GH_TOKEN}" \
             -e HEAD_SHA="${CONTEXT_SHA}" \
@@ -271,6 +272,7 @@ jobs:
           docker run --rm \
             -e AIDW_DIR=/aidw \
             -e CURSOR_API_KEY="${CURSOR_API_KEY}" \
+            -e GH_REPO="${REPO}" \
             -e GH_TOKEN="${GH_TOKEN}" \
             -e GITHUB_TOKEN="${GH_TOKEN}" \
             -e HEAD_SHA="${CONTEXT_SHA}" \

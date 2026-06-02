@@ -7,6 +7,7 @@ if [ "$#" -ne 1 ]; then
 fi
 
 prompt_file="$1"
+run_mode="${RUN_MODE:-normal}"
 git config --global --add safe.directory /workspace || true
 context_sha="${HEAD_SHA:-$(git -C /workspace rev-parse HEAD)}"
 agent_name="${AI_AGENT_NAME:-AI エージェント}"
@@ -108,7 +109,27 @@ cat > "$prompt_file" <<EOF
 </details>
 \`\`\`
 
+EOF
+
+if [ "$run_mode" = "docs_update" ]; then
+  cat >> "$prompt_file" <<EOF
+docs 更新モードの追加ルール:
+- この run の対象 PR は「作業中 PR」ではなく、すでに ${PR_BRANCH:-default branch} にマージ済みの元 PR です。
+- 現在の checkout は ${PR_BRANCH:-default branch} です。直接 push しないでください。
+- \`gh pr view ${PR_NUMBER}\`、\`gh pr diff ${PR_NUMBER}\`、\`git show ${context_sha}\`、ドキュメント、関連する実装ファイルを読んで、docs 更新が必要か判断してください。
+- docs 更新が不要、または判断不能な場合は、新規 PR を作らずに終了してください。元 PR へのコメント投稿は必須ではありません。
+- docs 更新が必要な場合だけ、\`ai/docs-update-pr-${PR_NUMBER}\` を基本に docs 更新用ブランチを作成し、docs を編集して commit / push し、新規 PR を作成してください。
+- docs 更新 PR にはラベル \`AIドキュメント更新\` のみを付けてください。ラベルが存在しない場合は \`gh label create "AIドキュメント更新" --color BFD4F2 --description "AI によるドキュメント更新 PR"\` で作成してください。
+- docs 更新 PR 本文には、元 PR URL、更新が必要と判断した理由、更新ファイル、AI による判断・更新であることを含めてください。
+- docs 更新 PR 自体がマージされたときの再帰発火は、\`AIドキュメント更新\` ラベルで workflow 側がスキップします。
+- このモードでは、PR 本文を中間成果物として更新する必要はありません。作成した docs 更新 PR の本文をストック型の成果物として扱ってください。
+
 今回の指示:
 EOF
+else
+  cat >> "$prompt_file" <<EOF
+今回の指示:
+EOF
+fi
 
 cat "$INSTRUCTION_FILE" >> "$prompt_file"

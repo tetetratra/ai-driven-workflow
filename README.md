@@ -10,6 +10,7 @@ GitHub の issue / PR コメントをきっかけに、AI（Codex / Cursor CLI�
 - その PR に（書き込み権限のあるユーザーが）コメントすると、AI が起動して PR 上で作業し、結果を PR コメント / PR 本文に反映する。
 - 会話の状態は PR 単位で暗号化保存され、次回以降の実行に引き継がれる。PR が close されると破棄される。
 - 使用する AI CLI（Codex / Cursor CLI）をラベルまたはリポジトリ Variable で切り替えられる。
+- PR が既定ブランチへマージされた後、必要に応じて AI がドキュメント更新 PR を作成する。
 
 ## 仕組み（アーキテクチャ）
 
@@ -21,16 +22,19 @@ flowchart TD
     T1[aidw-pr-issue-bootstrap.yml]
     T2[aidw-pr-comment.yml]
     T3[aidw-pr-state-cleanup.yml]
+    T4[aidw-pr-docs-update.yml]
   end
   subgraph tool [ai-driven-workflow @main 再利用ワークフロー]
     R1[pr-bootstrap.yml]
     R2[pr-comment.yml]
     R3[pr-common.yml]
     R4[pr-state-cleanup.yml]
+    R5[pr-docs-update.yml]
   end
   T1 -- "uses @main" --> R1 --> R3
   T2 -- "uses @main" --> R2 --> R3
   T3 -- "uses @main" --> R4
+  T4 -- "uses @main" --> R5 --> R3
   R3 --> D[Docker runner で AI CLI を隔離実行]
 ```
 
@@ -45,7 +49,7 @@ flowchart TD
 
 ## 導入手順
 
-導入先リポジトリのルートで、以下のコマンドをそのまま実行してください。専用スクリプトの取得は不要で、3 つのトリガ workflow をその場で生成します。
+導入先リポジトリのルートで、以下のコマンドをそのまま実行してください。専用スクリプトの取得は不要で、4 つのトリガ workflow をその場で生成します。
 
 ### 1. トリガ workflow を設置する
 
@@ -126,6 +130,26 @@ jobs:
   cleanup:
     uses: ${AIDW_REPO}/.github/workflows/pr-state-cleanup.yml@${AIDW_REF}
 EOF
+
+cat > .github/workflows/aidw-pr-docs-update.yml <<EOF
+name: AI PR Docs Update
+
+on:
+  pull_request:
+    types:
+      - closed
+
+permissions:
+  actions: write
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  docs-update:
+    uses: ${AIDW_REPO}/.github/workflows/pr-docs-update.yml@${AIDW_REF}
+    secrets: inherit
+EOF
 ```
 
 > トリガ workflow には `${{ ... }}` を含めていない（`if:` はベア式）ため、クォートなしヒアドキュメントの変数展開で参照先を埋め込めます。
@@ -137,6 +161,8 @@ gh label create "AI主導開発" --color BFD4F2 --description "AI 主導で扱�
 # 任意（AI CLI をラベルで切り替えたい場合）
 gh label create "AI:codex" --color 0E8A16 --description "AI CLI に Codex を使う"
 gh label create "AI:cursor-cli" --color 5319E7 --description "AI CLI に Cursor CLI を使う"
+# 任意（docs 更新 PR の再帰発火を避けるために使う）
+gh label create "AIドキュメント更新" --color BFD4F2 --description "AI によるドキュメント更新 PR"
 ```
 
 ### 3. Secret / Variable を設定する
@@ -191,6 +217,7 @@ git add .github/workflows && git commit -m "chore: AI主導開発ワークフロ
 2. 自動で対応用 PR が作られ、issue の依頼文が PR コメントに転記される。
 3. PR にコメントして方針を指示する。コメントごとに AI が起動して作業する。
 4. PR をマージ（または close）すると、保存していた状態 Artifact は破棄される。
+5. PR が既定ブランチへマージされると、AI がドキュメント更新要否を確認し、必要な場合だけ `AIドキュメント更新` ラベル付きの docs 更新 PR を作成する。
 
 > AI 実行はリポジトリへの書き込み権限（write 以上）を持つユーザーのコメントのみが起動できます。
 
@@ -215,7 +242,7 @@ git add .github/workflows && git commit -m "chore: AI主導開発ワークフロ
 ## リポジトリ構成
 
 ```
-.github/workflows/      再利用ワークフロー（pr-bootstrap / pr-comment / pr-common / pr-state-cleanup）と自リポジトリ用 lint
+.github/workflows/      再利用ワークフロー（pr-bootstrap / pr-comment / pr-common / pr-state-cleanup / pr-docs-update）と自リポジトリ用 lint
 scripts/                中核ロジック（PR 作成・コンテキスト解決・プロンプト生成・AI 実行・状態管理）
 docker/runner.Dockerfile 汎用 AI runner イメージ
 prompts/                branch slug 生成プロンプト
