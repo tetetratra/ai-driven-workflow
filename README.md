@@ -162,7 +162,16 @@ gh variable set AI_CLI_TOOL --body "cursor-cli"   # codex に戻すなら "codex
 
 ### 4. Actions が PR を作成できるよう設定する
 
-bootstrap は GitHub Actions の `GITHUB_TOKEN` で PR を作成します。リポジトリ設定で「Allow GitHub Actions to create and approve pull requests」が無効だと、`GitHub Actions is not permitted to create or approve pull requests` で失敗します。以下で有効化してください（Settings → Actions → General → Workflow permissions のチェックと同じ）。
+bootstrap は GitHub Actions の `GITHUB_TOKEN` で PR を作成します。リポジトリ設定で「Allow GitHub Actions to create and approve pull requests」が無効だと、`GitHub Actions is not permitted to create or approve pull requests` で失敗します。次のいずれかの方法で有効化してください。
+
+GUI（リポジトリ画面）から設定する場合:
+
+1. リポジトリの **Settings** タブを開く。
+2. 左メニューの **Actions** → **General** を選ぶ。
+3. ページ下部の **Workflow permissions** セクションへ移動する。
+4. **Allow GitHub Actions to create and approve pull requests** のチェックを ON にして **Save** する。
+
+`gh` CLI から設定する場合:
 
 ```sh
 gh api -X PUT "repos/$(gh repo view --json nameWithOwner --jq .nameWithOwner)/actions/permissions/workflow" \
