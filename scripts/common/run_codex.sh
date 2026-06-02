@@ -73,6 +73,8 @@ if [ -d "$skills_src" ]; then
   done
 fi
 
+codex_model="${CODEX_MODEL:-gpt-5.5}"
+
 # 導入先固有の事前セットアップ（依存インストール等）があれば AI 実行前に走らせる
 if [ -n "${SETUP_SCRIPT:-}" ] && [ -f "/workspace/${SETUP_SCRIPT}" ]; then
   echo "Running setup script: ${SETUP_SCRIPT}"
@@ -81,6 +83,7 @@ fi
 
 cmd=(
   codex exec
+  --model "$codex_model"
   --dangerously-bypass-approvals-and-sandbox
   --ignore-user-config
   --json

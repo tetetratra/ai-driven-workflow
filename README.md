@@ -186,6 +186,12 @@ gh secret set STATE_ENCRYPTION_PASSPHRASE --body "<任意の強固なパスフ�
 gh variable set AI_CLI_TOOL --body "cursor-cli"   # codex に戻すなら "codex"
 ```
 
+Codex のモデルを指定する場合（未設定時は `gpt-5.5`）:
+
+```sh
+gh variable set CODEX_MODEL --body "gpt-5.5"
+```
+
 ### 4. Actions が PR を作成できるよう設定する
 
 bootstrap は GitHub Actions の `GITHUB_TOKEN` で PR を作成します。リポジトリ設定で「Allow GitHub Actions to create and approve pull requests」が無効だと、`GitHub Actions is not permitted to create or approve pull requests` で失敗します。次のいずれかの方法で有効化してください。
