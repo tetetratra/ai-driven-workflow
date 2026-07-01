@@ -9,7 +9,7 @@ GitHub の issue / PR コメントをきっかけに、AI（Codex / Cursor CLI�
 - `AI主導開発` ラベルを付けた issue を起票（またはラベル付与）すると、対応用の PR が自動で作られる。
 - その PR に（書き込み権限のあるユーザーが）コメントすると、AI が起動して PR 上で作業し、結果を PR コメント / PR 本文に反映する。
 - 会話の状態は PR 単位で暗号化保存され、次回以降の実行に引き継がれる。PR が close されると破棄される。
-- 使用する AI CLI（Codex / Cursor CLI）をラベルまたはリポジトリ Variable で切り替えられる。
+- 使用する AI CLI（Codex / Cursor CLI）をリポジトリ Variable で切り替えられる。
 - PR が既定ブランチへマージされた後、必要に応じて AI がドキュメント更新 PR を作成する。
 
 ## 仕組み（アーキテクチャ）
@@ -158,9 +158,6 @@ EOF
 
 ```sh
 gh label create "AI主導開発" --color BFD4F2 --description "AI 主導で扱う issue/PR ラベル"
-# 任意（AI CLI をラベルで切り替えたい場合）
-gh label create "AI:codex" --color 0E8A16 --description "AI CLI に Codex を使う"
-gh label create "AI:cursor-cli" --color 5319E7 --description "AI CLI に Cursor CLI を使う"
 # 任意（docs 更新 PR の再帰発火を避けるために使う）
 gh label create "AIドキュメント更新" --color BFD4F2 --description "AI によるドキュメント更新 PR"
 ```
@@ -180,7 +177,7 @@ gh secret set CURSOR_API_KEY --body "<your-cursor-api-key>"
 gh secret set STATE_ENCRYPTION_PASSPHRASE --body "<任意の強固なパスフレーズ>"
 ```
 
-既定の AI CLI を切り替える場合（ラベル未指定時のデフォルト。既定は `codex`）:
+使用する AI CLI を切り替える場合（未設定時は `codex`）:
 
 ```sh
 gh variable set AI_CLI_TOOL --body "cursor-cli"   # codex に戻すなら "codex"
@@ -229,12 +226,12 @@ git add .github/workflows && git commit -m "chore: AI主導開発ワークフロ
 
 ## AI CLI の切り替え
 
-| AI CLI | ラベル | `AI_CLI_TOOL` の値 |
-|---|---|---|
-| Codex（デフォルト） | `AI:codex` | `codex` |
-| Cursor CLI | `AI:cursor-cli` | `cursor-cli` |
+AI CLI はリポジトリ Variable `AI_CLI_TOOL` で切り替えます。
 
-優先順位は「PR/issue のラベル」→「`AI_CLI_TOOL` Variable」です。両方のラベルが付いている場合は `AI:cursor-cli` を優先します。
+| AI CLI | `AI_CLI_TOOL` の値 |
+|---|---|
+| Codex（デフォルト） | `codex` |
+| Cursor CLI | `cursor-cli` |
 
 ## カスタマイズ（プロジェクト固有の依存）
 
