@@ -195,8 +195,6 @@ jobs:
           file: ${{ steps.docker.outputs.file }}
           load: true
           tags: ai-runner:${{ github.run_id }}
-          cache-from: type=gha,scope=ai-runner
-          cache-to: type=gha,mode=max,scope=ai-runner
 
       - name: Codex を実行する
         id: run_codex
