@@ -11,6 +11,7 @@ GitHub の issue / PR コメントをきっかけに、AI（Codex / Cursor CLI�
 - 会話の状態は PR 単位で暗号化保存され、次回以降の実行に引き継がれる。PR が close されると破棄される。
 - 使用する AI CLI（Codex / Cursor CLI）をリポジトリ Variable で切り替えられる。
 - PR が既定ブランチへマージされた後、必要に応じて AI がドキュメント更新 PR を作成する。
+- AI 実行中に共通 runner や workflow の改善要望が見つかった場合、必要に応じて GitHub issue として起票する。
 
 ## 仕組み（アーキテクチャ）
 
@@ -221,6 +222,7 @@ git add .github/workflows && git commit -m "chore: AI主導開発ワークフロ
 3. PR にコメントして方針を指示する。コメントごとに AI が起動して作業する。
 4. PR をマージ（または close）すると、保存していた状態 Artifact は破棄される。
 5. PR が既定ブランチへマージされると、AI がドキュメント更新要否を確認し、必要な場合だけ `AIドキュメント更新` ラベル付きの docs 更新 PR を作成する。
+6. AI が共通 runner / workflow / 権限設定などの改善要望に気づいた場合は、既存 issue の open / closed を確認したうえで、重複がなければ無ラベルの issue を起票する。
 
 > AI 実行はリポジトリへの書き込み権限（write 以上）を持つユーザーのコメントのみが起動できます。
 
