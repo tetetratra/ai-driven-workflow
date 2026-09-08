@@ -262,12 +262,6 @@ external/skills/         AI に渡すスキル（submodule: tetetratra/skills）
 
 ## 開発
 
-```sh
-# 静的検証（ローカル）
-shellcheck $(find scripts -name '*.sh')
-actionlint -ignore 'property "workflow_(repository|sha)" is not defined'
-```
-
 `main` への変更は全導入先へ即時伝播するため、後方互換を保つ運用を推奨します。
 
 ### skills サブモジュールの更新
