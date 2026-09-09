@@ -36,6 +36,12 @@ if ! git check-ref-format --branch "$branch_name" >/dev/null 2>&1; then
   branch_name="ai/${issue_number}-issue"
 fi
 
+if git ls-remote --exit-code --heads origin "$branch_name" >/dev/null 2>&1; then
+  suffix="${GITHUB_RUN_ID:-$(date +%s)}"
+  slug_with_suffix="${slug:0:$((48 - ${#suffix} - 1))}-${suffix}"
+  branch_name="ai/${issue_number}-${slug_with_suffix}"
+fi
+
 git config user.name "github-actions[bot]"
 git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
