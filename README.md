@@ -75,7 +75,6 @@ permissions:
   actions: write
   contents: write
   issues: write
-  models: read
   pull-requests: write
 
 jobs:

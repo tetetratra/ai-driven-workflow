@@ -14,7 +14,6 @@ permissions:
   actions: write
   contents: write
   issues: write
-  models: read
   pull-requests: write
 
 jobs:
@@ -43,23 +42,112 @@ jobs:
           path: .aidw
           submodules: recursive
 
+      - name: 実行環境変数を準備する
+        shell: bash
+        run: |
+          echo "CODEX_HOME=${RUNNER_TEMP}/codex-home" >> "$GITHUB_ENV"
+          echo "STATE_ROOT=${RUNNER_TEMP}/codex-state" >> "$GITHUB_ENV"
+
+      - name: 実行する AI CLI を決定する
+        id: cli
+        shell: bash
+        env:
+          AI_CLI_TOOL: ${{ vars.AI_CLI_TOOL }}
+        run: |
+          selected="$(printf '%s' "${AI_CLI_TOOL:-}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+          case "$selected" in
+            ""|codex)
+              tool="codex"
+              ;;
+            cursor-cli)
+              tool="cursor-cli"
+              ;;
+            *)
+              echo "warning: unsupported AI_CLI_TOOL '$selected'. Fallback to codex."
+              tool="codex"
+              ;;
+          esac
+          echo "tool=$tool" >> "$GITHUB_OUTPUT"
+
+      - name: 認証情報を復元する
+        id: auth
+        shell: bash
+        env:
+          AI_CLI_TOOL: ${{ steps.cli.outputs.tool }}
+          CODEX_AUTH_JSON_B64: ${{ secrets.CODEX_AUTH_JSON_B64 }}
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+        run: |
+          available="false"
+          case "${AI_CLI_TOOL}" in
+            codex)
+              if [ -n "${CODEX_AUTH_JSON_B64:-}" ]; then
+                mkdir -p "$CODEX_HOME"
+                chmod 700 "$CODEX_HOME"
+                printf '%s' "$CODEX_AUTH_JSON_B64" | base64 --decode > "$CODEX_HOME/auth.json"
+                chmod 600 "$CODEX_HOME/auth.json"
+                available="true"
+              fi
+              ;;
+            cursor-cli)
+              if [ -n "${CURSOR_API_KEY:-}" ]; then
+                available="true"
+              fi
+              ;;
+            *)
+              available="false"
+              ;;
+          esac
+          echo "available=$available" >> "$GITHUB_OUTPUT"
+
+      - name: Docker Buildx を設定する
+        if: steps.auth.outputs.available == 'true'
+        uses: docker/setup-buildx-action@v4
+
+      - name: runner イメージを build する
+        if: steps.auth.outputs.available == 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: ./.aidw/docker
+          file: ./.aidw/docker/runner.Dockerfile
+          load: true
+          tags: ai-runner:${{ github.run_id }}
+
       - name: Issue タイトルから branch slug を生成する
         id: branch_slug_ai
+        if: steps.auth.outputs.available == 'true'
         continue-on-error: true
-        uses: actions/ai-inference@v1
-        with:
-          prompt-file: ./.aidw/prompts/issue-branch-slug.prompt.yml
-          input: |
-            issue_title: |
-              ${{ github.event.issue.title }}
+        shell: bash
+        env:
+          AI_CLI_TOOL: ${{ steps.cli.outputs.tool }}
+          CODEX_MODEL: ${{ vars.CODEX_MODEL || 'gpt-5.5' }}
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+        run: |
+          mkdir -p "${STATE_ROOT}/bootstrap"
+          printf '%s' "$ISSUE_TITLE" > "${STATE_ROOT}/bootstrap/issue-title.txt"
+          docker run --rm \
+            -e AI_CLI_TOOL="${AI_CLI_TOOL}" \
+            -e CODEX_HOME=/codex-home \
+            -e CODEX_MODEL="${CODEX_MODEL}" \
+            -e CURSOR_API_KEY="${CURSOR_API_KEY}" \
+            -e ISSUE_TITLE_FILE=/state/bootstrap/issue-title.txt \
+            -e OUTPUT_FILE=/state/bootstrap/branch-slug.txt \
+            -v "${GITHUB_WORKSPACE}/.aidw:/aidw" \
+            -v "${CODEX_HOME}:/codex-home" \
+            -v "${STATE_ROOT}:/state" \
+            "ai-runner:${GITHUB_RUN_ID}" \
+            bash /aidw/scripts/bootstrap/generate_branch_slug_with_ai.sh
+
+          slug="$(cat "${STATE_ROOT}/bootstrap/branch-slug.txt" 2>/dev/null || true)"
+          echo "slug=$slug" >> "$GITHUB_OUTPUT"
 
       - name: AI 生成 slug を正規化する
         id: branch_slug
         shell: bash
         env:
-          AI_RESPONSE: ${{ steps.branch_slug_ai.outputs.response }}
+          AI_SLUG: ${{ steps.branch_slug_ai.outputs.slug }}
         run: |
-          slug="$(printf '%s' "$AI_RESPONSE" | jq -r '.slug // empty' 2>/dev/null || true)"
+          slug="$AI_SLUG"
           slug="$(printf '%s' "$slug" \
             | tr '[:upper:]' '[:lower:]' \
             | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//; s/-{2,}/-/g')"
