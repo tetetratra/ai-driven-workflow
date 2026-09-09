@@ -226,6 +226,7 @@ git add .github/workflows && git commit -m "chore: AI主導開発ワークフロ
 ## AI CLI の切り替え
 
 AI CLI はリポジトリ Variable `AI_CLI_TOOL` で切り替えます。
+PR 作成時の branch slug 生成も同じ設定を使い、選択した CLI の認証情報が未設定、または AI 生成に失敗した場合は issue タイトル由来の slug にフォールバックします。
 
 | AI CLI | `AI_CLI_TOOL` の値 |
 |---|---|
@@ -248,7 +249,7 @@ Dockerfile を自前で用意する場合は、汎用 runner に含まれてい�
 .github/workflows/      再利用ワークフロー（pr-bootstrap / pr-comment / pr-common / pr-state-cleanup / pr-docs-update）と自リポジトリ用 lint
 scripts/                中核ロジック（PR 作成・コンテキスト解決・プロンプト生成・AI 実行・状態管理）
 docker/runner.Dockerfile 汎用 AI runner イメージ
-prompts/                branch slug 生成プロンプト
+prompts/                AI 実行用プロンプト定義
 external/skills/         AI に渡すスキル（submodule: tetetratra/skills）
 ```
 
