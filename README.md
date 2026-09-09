@@ -235,12 +235,13 @@ AI CLI はリポジトリ Variable `AI_CLI_TOOL` で切り替えます。
 
 ## カスタマイズ（プロジェクト固有の依存）
 
-実行用の Docker イメージは汎用最小構成（git / gh / jq / ripgrep / Node + Codex CLI / Cursor CLI など）です。プロジェクト固有のビルド/テスト依存が必要な場合は、トリガ workflow から呼ぶ際に再利用ワークフロー `pr-common.yml` の入力を渡して拡張できます。
+実行用の Docker イメージは汎用最小構成（git / gh / jq / ripgrep / Node + Codex CLI / Cursor CLI など）です。プロジェクト固有のビルド/テスト依存が必要な場合は、導入先リポジトリに独自 Dockerfile や setup script を追加して拡張できます。
 
+- `.github/aidw/runner.Dockerfile`: このパスに Dockerfile を置くと、既定の runner イメージの代わりに自動で使われます。トリガ workflow の変更は不要です。
 - `setup_script`: AI 実行前にコンテナ内で走らせる導入先内のスクリプトパス（依存インストール等）。
-- `runner_dockerfile`: 導入先リポジトリ内の独自 Dockerfile パス（既定のイメージを置き換える）。
+- `runner_dockerfile`: 導入先リポジトリ内の独自 Dockerfile パス。`.github/aidw/runner.Dockerfile` 以外のパスを使う場合に、再利用ワークフロー `pr-common.yml` の入力として指定します。
 
-これらを使う場合は、トリガ workflow の `bootstrap` / `comment` を `pr-bootstrap.yml` / `pr-comment.yml` 経由ではなく、`pr-common.yml` を直接呼ぶ形に調整し、必要な入力を `with:` で渡してください。
+Dockerfile を自前で用意する場合は、汎用 runner に含まれている AI 実行用の基本ツール（git / gh / jq / ripgrep / Node + Codex CLI / Cursor CLI など）も含めてください。
 
 ## リポジトリ構成
 

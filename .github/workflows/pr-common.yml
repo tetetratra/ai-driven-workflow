@@ -20,7 +20,7 @@ on:
         required: false
         type: string
       runner_dockerfile:
-        description: 導入先リポジトリ内の独自 Dockerfile パス（既定はツール同梱の汎用イメージ）
+        description: 導入先リポジトリ内の独自 Dockerfile パス（未指定時は .github/aidw/runner.Dockerfile を自動検出）
         required: false
         type: string
       setup_script:
@@ -174,10 +174,22 @@ jobs:
         id: docker
         if: steps.auth.outputs.available == 'true'
         shell: bash
+        env:
+          INPUT_RUNNER_DOCKERFILE: ${{ inputs.runner_dockerfile }}
         run: |
-          if [ -n "${{ inputs.runner_dockerfile }}" ]; then
+          default_runner_dockerfile=".github/aidw/runner.Dockerfile"
+
+          if [ -n "$INPUT_RUNNER_DOCKERFILE" ]; then
+            runner_dockerfile="$INPUT_RUNNER_DOCKERFILE"
+          elif [ -f "${GITHUB_WORKSPACE}/${default_runner_dockerfile}" ]; then
+            runner_dockerfile="$default_runner_dockerfile"
+          else
+            runner_dockerfile=""
+          fi
+
+          if [ -n "$runner_dockerfile" ]; then
             echo "context=${GITHUB_WORKSPACE}" >> "$GITHUB_OUTPUT"
-            echo "file=${GITHUB_WORKSPACE}/${{ inputs.runner_dockerfile }}" >> "$GITHUB_OUTPUT"
+            echo "file=${GITHUB_WORKSPACE}/${runner_dockerfile}" >> "$GITHUB_OUTPUT"
           else
             echo "context=${GITHUB_WORKSPACE}/.aidw/docker" >> "$GITHUB_OUTPUT"
             echo "file=${GITHUB_WORKSPACE}/.aidw/docker/runner.Dockerfile" >> "$GITHUB_OUTPUT"
