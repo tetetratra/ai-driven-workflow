@@ -213,7 +213,6 @@ jobs:
         if: >-
           steps.auth.outputs.available == 'true' &&
           steps.cli.outputs.tool == 'codex'
-        continue-on-error: true
         shell: bash
         env:
           CODEX_MODEL: ${{ vars.CODEX_MODEL || 'gpt-5.5' }}
@@ -253,7 +252,6 @@ jobs:
         if: >-
           steps.auth.outputs.available == 'true' &&
           steps.cli.outputs.tool == 'cursor-cli'
-        continue-on-error: true
         shell: bash
         env:
           CONTEXT_SHA: ${{ inputs.context_sha }}
@@ -314,7 +312,7 @@ jobs:
 
       - name: 失敗時のフォールバックコメントを投稿する
         if: >-
-          steps.auth.outputs.available == 'true' && (
+          !cancelled() && steps.auth.outputs.available == 'true' && (
             (steps.cli.outputs.tool == 'codex' && steps.run_codex.outcome == 'failure') ||
             (steps.cli.outputs.tool == 'cursor-cli' && steps.run_cursor.outcome == 'failure')
           )
